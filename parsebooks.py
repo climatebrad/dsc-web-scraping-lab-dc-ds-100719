@@ -14,6 +14,7 @@ class SoupBook(bs4.element.Tag):
 
     @classmethod
     def convert_to_soupbook(cls, obj):
+        """Convert to a SoupBook class."""
         obj.__class__ = SoupBook
 
     @property
@@ -63,20 +64,32 @@ def retrieve_book_dicts(soup):
         books.append(book.as_dict())
     return books
 
-def next_page(base_url, soup):
+def retrieve_next_url(base_url: str, soup):
     """Returns the url of the next page, if it exists.
 Found in <li class="next"><a href="...">"""
     next_page = soup.find('li', class_='next')
     if next_page:
         return requests.compat.urljoin(base_url, next_page.a['href'])
+    return None
 
-def traverse_book_soup(base_url, soup = None):
-    """Returns the soup of the base_url if soup not specified.
-Otherwise, returns the soup of the next page, if exists.
-Otherwise returns None."""
-    if not soup:
-        next_url = base_url
-    else:
-        next_url = next_page(base_url, soup)
-    if next_url:
-        return BeautifulSoup(requests.get(next_url).content, 'html.parser')
+def get_soup(url: str):
+    """Returns the soup of the url."""
+    return BeautifulSoup(requests.get(url).content, 'html.parser')
+
+def get_book_dicts_from_url(url: str):
+    """Returns book dicts, given a url"""
+    soup = get_soup(url)
+    return retrieve_book_dicts(soup)
+
+def retrieve_all_book_dicts(base_url: str, limit: int = None):
+    """Returns list of book dicts, traversing pages from base_url.
+If limit is set, stops when length of books is greater than or equal to limit."""
+    books = []
+    current_url = base_url
+    while current_url:
+        soup = get_soup(current_url)
+        books.extend(retrieve_book_dicts(soup))
+        if limit and (len(books) > limit):
+            break
+        current_url = retrieve_next_url(current_url, soup)
+    return books
